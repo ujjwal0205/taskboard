@@ -36,7 +36,7 @@ public class BoardController {
     }
 
     @GetMapping("/{boardId}")
-    public BoardResponse get(@AuthenticationPrincipal UUID userId, @PathVariable UUID boardId) {
+    public BoardDetailResponse get(@AuthenticationPrincipal UUID userId, @PathVariable UUID boardId) {
         return boardService.get(userId, boardId);
     }
 }

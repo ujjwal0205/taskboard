@@ -60,7 +60,7 @@ public class BoardMemberService {
         requireOwner(boardId, userId);
 
         BoardMember target = boardMemberRepository.findByBoardIdAndUserId(boardId, memberUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member nor found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
 
         if(target.getRole() == BoardRole.OWNER){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The owner cannot be removed");
@@ -82,5 +82,18 @@ public class BoardMemberService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the board owner can manage members");
         }
         return member;
+    }
+
+
+    public BoardMember requireEditor(UUID boardId, UUID userId) {
+        BoardMember member = requireMember(boardId, userId);
+        if(member.getRole()==BoardRole.VIEWER){
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Viewers cannot make changes");
+        }
+        return member;
+    }
+
+    public boolean isMember(UUID boardId, UUID userId) {
+        return boardMemberRepository.existsByBoardIdAndUserId(boardId, userId);
     }
 }
