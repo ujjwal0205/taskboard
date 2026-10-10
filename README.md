@@ -136,7 +136,7 @@ npm install
 npm run dev                   # http://localhost:3000
 ```
 
-Without environment variables, the backend falls back to development defaults in `application.properties`. These defaults are for local use only.
+No secrets are stored in the code. When run this way, the backend reads `DB_PASSWORD` and `JWT_SECRET` from the same `.env` file in the project root that Docker Compose uses.
 
 ## Configuration
 
