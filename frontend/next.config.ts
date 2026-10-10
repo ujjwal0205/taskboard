@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
+const apiUrl = process.env.API_URL ?? "http://localhost:8080";
+
 const nextConfig: NextConfig = {
-  /* config options here */
   experimental: {
     agentFeedback: true,
   },
@@ -14,6 +15,11 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  // The browser calls /api/* on this origin and Next forwards it to the Spring Boot backend,
+  // so the REST API needs no CORS configuration.
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
   },
 };
 

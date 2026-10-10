@@ -11,6 +11,16 @@ public final class Positions {
 
     }
 
+    public static boolean needsRebalance(List<? extends Positioned> siblings, int index){
+        int slot = Math.max(0 , Math.min(index , siblings.size()));
+
+        if(slot == 0 || slot == siblings.size()){
+            return false;
+        }
+
+        return siblings.get(slot).getPosition() - siblings.get(slot - 1).getPosition() < MIN_GAP;
+    }
+
     public static double place(List<? extends Positioned> siblings, int index) {
         
         if(siblings.isEmpty()){

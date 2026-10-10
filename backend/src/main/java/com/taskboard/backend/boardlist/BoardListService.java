@@ -3,6 +3,7 @@ package com.taskboard.backend.boardlist;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.taskboard.backend.board.BoardMember;
 import com.taskboard.backend.board.BoardMemberService;
 import com.taskboard.backend.common.Positions;
+import com.taskboard.backend.realtime.BoardEvent;
+import com.taskboard.backend.realtime.BoardEventType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 public class BoardListService {
     private final BoardListRepository boardListRepository;
     private final BoardMemberService boardMemberService;
+
+    private final ApplicationEventPublisher events;
 
 
     @Transactional(readOnly = true)
@@ -40,7 +45,10 @@ public class BoardListService {
         list.setBoard(member.getBoard());
         list.setName(request.name().trim());
         list.setPosition(Positions.place(siblings, siblings.size()));
-        return ListResponse.from(boardListRepository.save(list));
+
+        ListResponse response = ListResponse.from(boardListRepository.save(list));
+        events.publishEvent(new BoardEvent(BoardEventType.LIST_CREATED, boardId, response));
+        return response;
     }
 
     @Transactional 
@@ -57,15 +65,22 @@ public class BoardListService {
             list.setName(request.name().trim());
         }
 
-        if (request.index() != null){
+        boolean rebalanced = false;
+        if(request.index() != null) {
             List<BoardList> siblings = boardListRepository.findByBoardIdOrderByPosition(boardId).stream()
-                            .filter(other -> !other.getId().equals(list.getId()))
-                            .toList();
+                        .filter(other -> !other.getId().equals(list.getId()))
+                        .toList();
 
+            rebalanced = Positions.needsRebalance(siblings, request.index());
             list.setPosition(Positions.place(siblings, request.index()));
-            
         }
 
-        return ListResponse.from(list);
+        ListResponse response = ListResponse.from(list);
+        events.publishEvent(rebalanced 
+                    ? BoardEvent.boardChanged(boardId)
+                    : new BoardEvent(BoardEventType.LIST_UPDATED, boardId, response)
+        );
+        
+        return response;
     }
 }

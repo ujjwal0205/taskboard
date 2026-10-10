@@ -3,6 +3,7 @@ package com.taskboard.backend.card;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,9 @@ import com.taskboard.backend.board.BoardMemberService;
 import com.taskboard.backend.boardlist.BoardList;
 import com.taskboard.backend.boardlist.BoardListRepository;
 import com.taskboard.backend.common.Positions;
+import com.taskboard.backend.realtime.BoardEvent;
+import com.taskboard.backend.realtime.BoardEventType;
+import com.taskboard.backend.realtime.DeletedCard;
 import com.taskboard.backend.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +27,8 @@ public class CardService {
     private final BoardListRepository boardListRepository;
     private final BoardMemberService boardMemberService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher events;
+
 
     @Transactional 
     public CardResponse create(UUID userId, UUID listId, CreateCardRequest request){
@@ -38,7 +44,10 @@ public class CardService {
         card.setDescription(request.description());
         card.setPosition(Positions.place(siblings, siblings.size()));
 
-        return CardResponse.from(cardRepository.saveAndFlush(card));
+        CardResponse response = CardResponse.from(cardRepository.saveAndFlush(card));
+        events.publishEvent(new BoardEvent(BoardEventType.CARD_CREATED, list.getBoard().getId(), response));
+        return response;
+
     }
 
     @Transactional 
@@ -70,8 +79,9 @@ public class CardService {
             card.setAssignee(userRepository.getReferenceById(request.assigneeId()));
         }
 
-        return CardResponse.from(cardRepository.saveAndFlush(card));
-
+        CardResponse response = CardResponse.from(cardRepository.saveAndFlush(card));
+        events.publishEvent(new BoardEvent(BoardEventType.CARD_UPDATED, boardId, response));
+        return response;
     }
 
 
@@ -93,19 +103,29 @@ public class CardService {
                     .filter(other -> !other.getId().equals(card.getId()))
                     .toList();
 
+                boolean rebalanced = Positions.needsRebalance(siblings, request.index());
         card.setList(target);
-        card.setPosition(Positions.place(siblings,request.index()));
+        card.setPosition(Positions.place(siblings, request.index()));
 
-        return CardResponse.from(cardRepository.saveAndFlush(card));
+        CardResponse response = CardResponse.from(cardRepository.saveAndFlush(card));
+        events.publishEvent(rebalanced
+                ? BoardEvent.boardChanged(boardId)
+                : new BoardEvent(BoardEventType.CARD_MOVED, boardId, response));
+        return response;
+
     }
 
-    @Transactional
-    public void delete(UUID userId, UUID cardId){
+      @Transactional
+    public void delete(UUID userId, UUID cardId) {
         Card card = findCard(cardId);
-        boardMemberService.requireEditor(card.getList().getBoard().getId(), userId);
+        UUID listId = card.getList().getId();
+        UUID boardId = card.getList().getBoard().getId();
+        boardMemberService.requireEditor(boardId, userId);
 
         cardRepository.delete(card);
+        events.publishEvent(new BoardEvent(BoardEventType.CARD_DELETED, boardId, new DeletedCard(cardId, listId)));
     }
+
 
     private Card findCard(UUID cardId){
         return cardRepository.findById(cardId)

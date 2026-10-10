@@ -44,7 +44,7 @@ public class AuthService {
     public AuthResponse login(LoginRequest request){
         User user = userRepository.findByEmail(request.email().trim().toLowerCase())
             .filter(found -> passwordEncoder.matches(request.password(), found.getPasswordHash()))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invald email or password"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
             return new AuthResponse(jwtService.generateToken(user.getId()), UserResponse.from(user));
     }
